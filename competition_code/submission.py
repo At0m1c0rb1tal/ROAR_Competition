@@ -49,6 +49,8 @@ class RoarCompetitionSolution:
         # TODO: You can do some initial computation here if you want to.
         # For example, you can compute the path to the first waypoint.
 
+
+        # Receive location, rotation and velocity data
         vehicle_location = self.location_sensor.get_last_gym_observation()
         vehicle_rotation = self.rpy_sensor.get_last_gym_observation()
         vehicle_velocity = self.velocity_sensor.get_last_gym_observation()
@@ -74,25 +76,44 @@ class RoarCompetitionSolution:
         """
         # TODO: Implement your solution here.
 
+
+        # Receive location, rotation and velocity data
         vehicle_location = self.location_sensor.get_last_gym_observation()
         vehicle_rotation = self.rpy_sensor.get_last_gym_observation()
         vehicle_velocity = self.velocity_sensor.get_last_gym_observation()
         vehicle_velocity_norm = np.linalg.norm(vehicle_velocity)
+       
+        # Find the waypoint closest to the vehicle
         self.current_waypoint_idx = filter_waypoints(
             vehicle_location,
             self.current_waypoint_idx,
             self.maneuverable_waypoints
         )
+         # We use the 3rd waypoint ahead of the current waypoint as the target waypoint
         idx_off = 5 if vehicle_velocity_norm > 20.0 else (4 if vehicle_velocity_norm > 14.0 else 3)
         waypoint_to_follow = self.maneuverable_waypoints[(self.current_waypoint_idx + idx_off) % len(self.maneuverable_waypoints)]
+
+
+        # Calculate delta vector towards the target waypoint
         vector_to_waypoint = (waypoint_to_follow.location - vehicle_location)[:2]
         heading_to_waypoint = np.arctan2(vector_to_waypoint[1],vector_to_waypoint[0])
+
+
+        # Calculate delta angle towards the target waypoint
         delta_heading = normalize_rad(heading_to_waypoint - vehicle_rotation[2])
+
+
+        # Proportional controller to steer the vehicle towards the target waypoint
         steer_control = (
-            -6.5 / np.sqrt(vehicle_velocity_norm) * delta_heading / np.pi
+            -8.0 / np.sqrt(vehicle_velocity_norm) * delta_heading / np.pi
         ) if vehicle_velocity_norm > 1e-2 else -np.sign(delta_heading)
         steer_control = np.clip(steer_control, -1.0, 1.0)
-        throttle_control = 0.05 * (36 - vehicle_velocity_norm)
+
+
+        # Proportional controller to control the vehicle's speed towards 40 m/s
+        throttle_control =( 0.05 * (32 - vehicle_velocity_norm))
+
+
         control = {
             "throttle": np.clip(throttle_control, 0.0, 1.0),
             "steer": steer_control,
@@ -103,3 +124,6 @@ class RoarCompetitionSolution:
         }
         await self.vehicle.apply_action(control)
         return control
+
+
+
